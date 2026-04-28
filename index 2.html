@@ -1,0 +1,725 @@
+<html lang="en"><head>
+<!-- Playables SDK -->
+<script>// Playables SDK v1.0.0
+// Game lifecycle bridge: rAF-based game-ready detection + event communication
+(function() {
+  'use strict';
+
+  // Idempotency: skip if already initialized (e.g., server-side injection
+  // followed by client-side inject-javascript via the Bloks webview component).
+  if (window.playablesSDK) return;
+
+  var HANDLER_NAME = 'playablesGameEventHandler';
+  var ANDROID_BRIDGE_NAME = '_MetaPlayablesBridge';
+  var RAF_FRAME_THRESHOLD = 3;
+
+  var gameReadySent = false;
+  var firstInteractionSent = false;
+  var errorSent = false;
+  var frameCount = 0;
+  var originalRAF = window.requestAnimationFrame;
+
+  // --- Transport Layer ---
+
+  function hasIOSBridge() {
+    return !!(window.webkit &&
+              window.webkit.messageHandlers &&
+              window.webkit.messageHandlers[HANDLER_NAME]);
+  }
+
+  function hasAndroidBridge() {
+    return !!(window[ANDROID_BRIDGE_NAME] &&
+              typeof window[ANDROID_BRIDGE_NAME].postEvent === 'function');
+  }
+
+  function isInIframe() {
+    return !!(window.parent && window.parent !== window);
+  }
+
+  function sendEvent(eventName, payload) {
+    var message = {
+      type: eventName,
+      payload: payload || {},
+      timestamp: Date.now()
+    };
+
+    if (hasIOSBridge()) {
+      try {
+        window.webkit.messageHandlers[HANDLER_NAME].postMessage(message);
+      } catch (e) { /* ignore */ }
+      return;
+    }
+
+    if (hasAndroidBridge()) {
+    try {
+      var p = payload || {};
+      p.__secureToken = window.__fbAndroidBridgeAuthToken || '';
+      window[ANDROID_BRIDGE_NAME].postEvent(
+        eventName,
+        JSON.stringify(p)
+      );
+    } catch (e) { /* ignore */ }
+    return;
+  }
+
+    if (isInIframe()) {
+      try {
+        window.parent.postMessage(message, '*');
+      } catch (e) { /* ignore */ }
+      return;
+    }
+  }
+
+  // --- rAF Game-Ready Detection ---
+
+  function onFrame() {
+    if (gameReadySent) return;
+
+    frameCount++;
+    if (frameCount >= RAF_FRAME_THRESHOLD) {
+      gameReadySent = true;
+      sendEvent('game_ready', {
+        frame_count: frameCount,
+        detected_at: Date.now()
+      });
+      return;
+    }
+
+    originalRAF.call(window, onFrame);
+  }
+
+  if (originalRAF) {
+    window.requestAnimationFrame = function(callback) {
+      if (!gameReadySent) {
+        return originalRAF.call(window, function(timestamp) {
+          frameCount++;
+          if (frameCount >= RAF_FRAME_THRESHOLD && !gameReadySent) {
+            gameReadySent = true;
+            sendEvent('game_ready', {
+              frame_count: frameCount,
+              detected_at: Date.now()
+            });
+          }
+          callback(timestamp);
+        });
+      }
+      return originalRAF.call(window, callback);
+    };
+  }
+
+  // --- First User Interaction Detection ---
+
+  function setupFirstInteractionDetection() {
+    var events = ['touchstart', 'mousedown', 'keydown'];
+
+    function onFirstInteraction() {
+      if (firstInteractionSent) return;
+      firstInteractionSent = true;
+      sendEvent('user_interaction_start', null);
+
+      for (var i = 0; i < events.length; i++) {
+        document.removeEventListener(events[i], onFirstInteraction, true);
+      }
+    }
+
+    for (var i = 0; i < events.length; i++) {
+      document.addEventListener(events[i], onFirstInteraction, true);
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupFirstInteractionDetection);
+  } else {
+    setupFirstInteractionDetection();
+  }
+
+  // --- Auto Error Capture ---
+
+  window.addEventListener('error', function(event) {
+    if (errorSent) return;
+    errorSent = true;
+    sendEvent('error', {
+      message: event.message || 'Unknown error',
+      source: event.filename || '',
+      lineno: event.lineno || 0,
+      colno: event.colno || 0,
+      auto_captured: true
+    });
+  });
+
+  window.addEventListener('unhandledrejection', function(event) {
+    if (errorSent) return;
+    errorSent = true;
+    var reason = event.reason;
+    sendEvent('error', {
+      message: (reason instanceof Error) ? reason.message : String(reason),
+      type: 'unhandled_promise_rejection',
+      auto_captured: true
+    });
+  });
+
+  // --- Public API ---
+
+  window.playablesSDK = {
+    complete: function(score) {
+      sendEvent('game_ended', {
+        score: score,
+        completed: true
+      });
+    },
+
+    error: function(message) {
+      if (errorSent) return;
+      errorSent = true;
+      sendEvent('error', {
+        message: message || 'Unknown error',
+        auto_captured: false
+      });
+    },
+
+    sendEvent: function(eventName, payload) {
+      if (!eventName || typeof eventName !== 'string') return;
+      sendEvent(eventName, payload);
+    }
+  };
+
+  // Kick off rAF detection in case no game code calls rAF immediately
+  if (originalRAF) {
+    originalRAF.call(window, onFrame);
+  }
+})();</script>
+<script>window.Intl=window.Intl||{};Intl.t=function(s){return(Intl._locale&&Intl._locale[s])||s;};</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Divine Games — Luxury Edition v6</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&amp;family=Outfit:wght@300;400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#030509;
+  --gold:#D4AF37;
+  --gold-2:#b8932f;
+  --gold-3:#7a5f1f;
+  --panel:rgba(13,15,20,0.72);
+  --panel-2:rgba(18,20,26,0.8);
+  --border:rgba(212,175,55,0.22);
+  --border-strong:rgba(212,175,55,0.4);
+  --text:#ede7d6;
+  --muted:#9aa0ad;
+  --success:#22c55e;
+  --danger:#ef4444;
+  --warning:#f59e0b;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family:'Outfit',system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,sans-serif;
+  overflow-x:hidden;
+}
+.bg-glow{
+  position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:
+    radial-gradient(900px 600px at 50% -10%, rgba(212,175,55,0.18), transparent 60%),
+    radial-gradient(700px 500px at 85% 15%, rgba(212,175,55,0.10), transparent 55%),
+    radial-gradient(600px 400px at 15% 20%, rgba(212,175,55,0.08), transparent 50%);
+}
+#watermark{
+  position:fixed;left:50%;top:50%;transform:translate(-50%,-48%);
+  width:min(72vmin,900px);opacity:.025;z-index:0;pointer-events:none;
+  filter:drop-shadow(0 0 40px rgba(212,175,55,.2));
+}
+header{
+  position:sticky;top:0;z-index:40;
+  backdrop-filter:blur(16px) saturate(120%);
+  background:linear-gradient(180deg, rgba(3,5,9,.9), rgba(3,5,9,.6));
+  border-bottom:1px solid var(--border);
+}
+.header-inner{
+  max-width:1800px;margin:0 auto;padding:14px 20px;
+  display:flex;align-items:center;gap:16px;
+}
+.hamburger{
+  display:none;width:40px;height:40px;border-radius:12px;border:1px solid var(--border);
+  background:var(--panel);place-items:center;cursor:pointer;
+}
+.hamburger span{width:18px;height:2px;background:var(--gold);display:block;box-shadow:0 6px 0 var(--gold),0 -6px 0 var(--gold)}
+.logo{
+  display:flex;align-items:center;gap:10px;font-family:'Playfair Display',serif;
+  font-weight:800;font-size:28px;letter-spacing:.5px;
+  text-shadow:0 0 30px rgba(212,175,55,.25);
+}
+.logo .dg{
+  background:linear-gradient(180deg,var(--gold),#f5e6b3);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.badge-lux{
+  font-family:'Outfit',sans-serif;font-size:10px;letter-spacing:1.8px;
+  padding:4px 8px;border-radius:999px;color:#0b0a06;
+  background:linear-gradient(180deg,#fde7a0,var(--gold));border:1px solid #e7c86a;
+  box-shadow:0 0 18px rgba(212,175,55,.35), inset 0 1px 0 rgba(255,255,255,.4);
+  font-weight:700;
+}
+.live-dot{
+  width:9px;height:9px;border-radius:50%;background:var(--gold);
+  box-shadow:0 0 0 0 rgba(212,175,55,.7);animation:pulse 1.8s infinite;margin-left:6px;
+}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(212,175,55,.7)}70%{box-shadow:0 0 0 10px rgba(212,175,55,0)}100%{box-shadow:0 0 0 0 rgba(212,175,55,0)}}
+.clock{
+  margin-left:auto;display:flex;align-items:center;gap:10px;
+  padding:8px 12px;border:1px solid var(--border);border-radius:12px;
+  background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.02));
+  font-family:'JetBrains Mono',monospace;font-size:13px;color:#e7d8a6;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05);
+}
+.clock svg{opacity:.8}
+
+.app{
+  max-width:1800px;margin:0 auto;padding:20px;
+  display:grid;grid-template-columns:320px 1fr;gap:20px;position:relative;z-index:1;
+}
+.panel{
+  background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+  border:1px solid var(--border);border-radius:18px;
+  box-shadow:0 10px 40px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.04);
+  backdrop-filter:blur(14px) saturate(115%);
+}
+.sidebar{position:sticky;top:84px;height:calc(100vh - 104px);overflow:hidden;display:flex;flex-direction:column}
+.side-head{padding:14px 14px 10px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.side-head h3{margin:0;font-size:14px;letter-spacing:.12em;text-transform:uppercase;color:#ddcf9f}
+.side-actions{display:flex;gap:8px}
+.btn-ghost{
+  font-size:11px;padding:6px 10px;border-radius:10px;border:1px solid var(--border);
+  background:rgba(255,255,255,.03);color:#e6d9ad;cursor:pointer;transition:.2s;
+}
+.btn-ghost:hover{border-color:var(--border-strong);background:rgba(212,175,55,.08)}
+.tree{overflow:auto;padding:10px 10px 16px;flex:1}
+.continent{margin:8px 4px 14px;border:1px solid var(--border);border-radius:14px;overflow:hidden;background:rgba(0,0,0,.2)}
+.continent>summary{
+  list-style:none;cursor:pointer;padding:10px 12px;font-weight:600;color:#f0e3b8;
+  display:flex;align-items:center;gap:8px;background:linear-gradient(180deg,rgba(212,175,55,.09),rgba(212,175,55,.02));
+  border-bottom:1px solid var(--border);
+}
+.continent>summary::-webkit-details-marker{display:none}
+.continent[open]>summary{border-bottom-color:var(--border-strong)}
+.country{padding:8px 10px 10px;border-top:1px dashed rgba(212,175,55,.12)}
+.country:first-child{border-top:none}
+.c-name{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#cbb77a;margin:0 0 6px 4px}
+.leagues{display:grid;grid-template-columns:1fr;gap:4px}
+.league{
+  display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:8px;
+  border:1px solid transparent;cursor:pointer;font-size:13px;color:#e8e0c7;
+}
+.league:hover{background:rgba(212,175,55,.06);border-color:var(--border)}
+.league input{accent-color:var(--gold);width:14px;height:14px}
+
+.main{display:flex;flex-direction:column;gap:14px;min-width:0}
+.controls{
+  display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px;
+}
+.control{
+  display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border);
+  border-radius:12px;background:var(--panel-2);
+}
+.control input[type="date"], .control select, .control input[type="search"], .control input[type="password"]{
+  background:transparent;border:none;outline:none;color:var(--text);
+  font-family:'Outfit',sans-serif;font-size:14px;min-width:140px;
+}
+.control input[type="search"]{min-width:200px}
+.control input[type="password"]{min-width:160px}
+input[type="date"]::-webkit-calendar-picker-indicator{filter:invert(1) brightness(1.2)}
+.filters{display:flex;gap:6px;margin-left:auto}
+.chip{
+  padding:8px 12px;border-radius:999px;border:1px solid var(--border);cursor:pointer;
+  background:rgba(255,255,255,.03);font-weight:600;font-size:12px;letter-spacing:.06em;color:#e7d9ae;
+  transition:.2s;
+}
+.chip.active,.chip:hover{border-color:var(--border-strong);background:linear-gradient(180deg,rgba(212,175,55,.18),rgba(212,175,55,.05));color:#fff0c2;box-shadow:0 0 16px rgba(212,175,55,.15) inset}
+
+.banner{
+  display:flex;align-items:center;gap:12px;padding:10px 14px;
+}
+.banner .count{font-weight:600;color:#f3e7b8}
+.banner .meta{color:var(--muted);font-size:13px}
+.spacer{flex:1}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+.btn{
+  padding:9px 14px;border-radius:12px;border:1px solid var(--border-strong);
+  background:linear-gradient(180deg,rgba(212,175,55,.22),rgba(212,175,55,.08));
+  color:#fff7d6;font-weight:600;font-size:13px;cursor:pointer;transition:.2s;
+  box-shadow:0 6px 20px rgba(212,175,55,.12), inset 0 1px 0 rgba(255,255,255,.2);
+}
+.btn:hover{transform:translateY(-1px);box-shadow:0 10px 26px rgba(212,175,55,.18), inset 0 1px 0 rgba(255,255,255,.25)}
+.btn.secondary{background:rgba(255,255,255,.04);color:#e7d9b0;box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
+
+.table-wrap{overflow:auto;max-height:calc(100vh - 300px);border-radius:16px}
+table{width:100%;border-collapse:separate;border-spacing:0;font-size:14px;min-width:900px}
+thead th{
+  position:sticky;top:0;z-index:3;
+  background:linear-gradient(180deg,rgba(10,12,18,.95),rgba(10,12,18,.85));
+  backdrop-filter:blur(8px);
+  text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:#d6c48a;
+  padding:12px 12px;border-bottom:1px solid var(--border-strong);
+}
+tbody td{padding:11px 12px;border-bottom:1px solid rgba(212,175,55,.08);vertical-align:middle}
+tbody tr:hover td{background:rgba(212,175,55,.04)}
+td.time{font-family:'JetBrains Mono',monospace;color:#f0e2b6;white-space:nowrap}
+td.country,td.league{color:#d8cfb1}
+td.home,td.away{font-weight:500}
+td.score{font-family:'JetBrains Mono',monospace;font-weight:600;color:#f5e7b9;white-space:nowrap;text-align:center;min-width:70px}
+td.status{text-align:right}
+
+.group-row td{
+  position:sticky;top:36px;z-index:2;
+  background:linear-gradient(180deg,rgba(212,175,55,.14),rgba(212,175,55,.06));
+  color:#ffeab0;font-weight:700;letter-spacing:.02em;
+  padding:10px 12px;border-top:1px solid var(--border-strong);border-bottom:1px solid var(--border-strong);
+  backdrop-filter:blur(6px);
+}
+.group-row td::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,var(--gold),#8f732b)}
+
+.badge{
+  display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;
+  font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border:1px solid transparent;
+  white-space:nowrap;
+}
+.badge.live{
+  color:#1a1404;background:linear-gradient(180deg,#fdeaa5,var(--gold));
+  border-color:#e6c76a;box-shadow:0 0 0 0 rgba(212,175,55,.7);animation:pulse 1.6s infinite;
+}
+.badge.ns{color:#b8b29b;background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.12)}
+.badge.ft{color:#0b1f13;background:linear-gradient(180deg,#7df2a6,#22c55e);border-color:#1ea753}
+.badge.ht{color:#2b1305;background:linear-gradient(180deg,#ffcd8a,#f59e0b);border-color:#d78606}
+.badge.et,.badge.p{color:#130d27;background:linear-gradient(180deg,#c9b6ff,#8b5cf6);border-color:#7c3aed}
+
+.empty{
+  padding:40px;text-align:center;color:var(--muted);
+}
+
+@media (max-width:1100px){
+  .app{grid-template-columns:1fr;padding:14px}
+  .sidebar{
+    position:fixed;left:0;top:0;bottom:0;width:320px;transform:translateX(-105%);
+    transition:.3s;z-index:60;height:100vh;border-radius:0 18px 18px 0;border-left:none;
+  }
+  .sidebar.open{transform:none}
+  .hamburger{display:grid}
+  .table-wrap{max-height:none}
+  .controls .filters{width:100%;margin-left:0}
+  .control input[type="search"]{min-width:0;width:140px}
+  .control input[type="password"]{min-width:100px}
+}
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.5);backdrop-filter:blur(2px);z-index:55;display:none}
+.scrim.show{display:block}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:linear-gradient(var(--gold-3),var(--gold));border-radius:10px}
+::-webkit-scrollbar-track{background:rgba(255,255,255,.04)}
+</style>
+</head>
+<body>
+<div class="bg-glow"></div>
+<svg id="watermark" viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <defs>
+    <linearGradient id="gdg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#D4AF37"></stop><stop offset="100%" stop-color="#8f712a"></stop>
+    </linearGradient>
+  </defs>
+  <path d="M200 28 L316 92 V198 C316 280 262 338 200 368 C138 338 84 280 84 198 V92 Z" fill="none" stroke="url(#gdg)" stroke-width="8" stroke-linejoin="round"></path>
+  <path d="M200 62 L282 108 V188 C282 248 244 290 200 310 C156 290 118 248 118 188 V108 Z" fill="none" stroke="url(#gdg)" stroke-width="3" opacity=".7"></path>
+  <text x="200" y="225" text-anchor="middle" font-family="Playfair Display, serif" font-size="132" font-weight="800" fill="url(#gdg)">DG</text>
+</svg>
+
+<header>
+  <div class="header-inner">
+    <button class="hamburger" id="menuBtn" aria-label="Menu"><span></span></button>
+    <div class="logo"><span class="dg">Divine Games</span><span class="badge-lux">LUXURY</span><span class="live-dot" title="Live"></span></div>
+    <div class="clock" title="Africa/Accra">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 7v5l3 3" stroke="#e7d8a6" stroke-width="1.6" stroke-linecap="round"></path><circle cx="12" cy="12" r="9" stroke="#e7d8a6" stroke-width="1.3" opacity=".7"></circle></svg>
+      <span id="accraClock">14:44:12</span><span style="opacity:.7">Accra</span>
+    </div>
+  </div>
+</header>
+
+<div class="scrim" id="scrim"></div>
+
+<div class="app">
+  <aside class="sidebar panel" id="sidebar">
+    <div class="side-head">
+      <h3>Continents &amp; Leagues</h3>
+      <div class="side-actions">
+        <button class="btn-ghost" id="selectAll">Select All</button>
+        <button class="btn-ghost" id="clearAll">Clear</button>
+      </div>
+    </div>
+    <div class="tree" id="leagueTree"><details class="continent" open=""><summary><span style="opacity:.7">🌍</span> Europe</summary><div class="country"><div class="c-name">England</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-England-Premier-League" data-country="England" data-league="Premier League" checked=""> <span>Premier League</span></label><label class="league"><input type="checkbox" id="lg-England-Championship" data-country="England" data-league="Championship" checked=""> <span>Championship</span></label><label class="league"><input type="checkbox" id="lg-England-League-One" data-country="England" data-league="League One" checked=""> <span>League One</span></label><label class="league"><input type="checkbox" id="lg-England-League-Two" data-country="England" data-league="League Two" checked=""> <span>League Two</span></label><label class="league"><input type="checkbox" id="lg-England-National-League" data-country="England" data-league="National League" checked=""> <span>National League</span></label><label class="league"><input type="checkbox" id="lg-England-FA-Cup" data-country="England" data-league="FA Cup" checked=""> <span>FA Cup</span></label><label class="league"><input type="checkbox" id="lg-England-EFL-Cup" data-country="England" data-league="EFL Cup" checked=""> <span>EFL Cup</span></label><label class="league"><input type="checkbox" id="lg-England-Community-Shield" data-country="England" data-league="Community Shield" checked=""> <span>Community Shield</span></label></div></div><div class="country"><div class="c-name">Spain</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Spain-La-Liga" data-country="Spain" data-league="La Liga" checked=""> <span>La Liga</span></label><label class="league"><input type="checkbox" id="lg-Spain-Segunda-División" data-country="Spain" data-league="Segunda División" checked=""> <span>Segunda División</span></label><label class="league"><input type="checkbox" id="lg-Spain-Primera-Federación" data-country="Spain" data-league="Primera Federación" checked=""> <span>Primera Federación</span></label><label class="league"><input type="checkbox" id="lg-Spain-Copa-del-Rey" data-country="Spain" data-league="Copa del Rey" checked=""> <span>Copa del Rey</span></label><label class="league"><input type="checkbox" id="lg-Spain-Supercopa" data-country="Spain" data-league="Supercopa" checked=""> <span>Supercopa</span></label></div></div><div class="country"><div class="c-name">Italy</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Italy-Serie-A" data-country="Italy" data-league="Serie A" checked=""> <span>Serie A</span></label><label class="league"><input type="checkbox" id="lg-Italy-Serie-B" data-country="Italy" data-league="Serie B" checked=""> <span>Serie B</span></label><label class="league"><input type="checkbox" id="lg-Italy-Coppa-Italia" data-country="Italy" data-league="Coppa Italia" checked=""> <span>Coppa Italia</span></label><label class="league"><input type="checkbox" id="lg-Italy-Supercoppa" data-country="Italy" data-league="Supercoppa" checked=""> <span>Supercoppa</span></label></div></div><div class="country"><div class="c-name">Germany</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Germany-Bundesliga" data-country="Germany" data-league="Bundesliga" checked=""> <span>Bundesliga</span></label><label class="league"><input type="checkbox" id="lg-Germany-2.-Bundesliga" data-country="Germany" data-league="2. Bundesliga" checked=""> <span>2. Bundesliga</span></label><label class="league"><input type="checkbox" id="lg-Germany-3.-Liga" data-country="Germany" data-league="3. Liga" checked=""> <span>3. Liga</span></label><label class="league"><input type="checkbox" id="lg-Germany-DFB-Pokal" data-country="Germany" data-league="DFB-Pokal" checked=""> <span>DFB-Pokal</span></label><label class="league"><input type="checkbox" id="lg-Germany-DFL-Supercup" data-country="Germany" data-league="DFL-Supercup" checked=""> <span>DFL-Supercup</span></label></div></div><div class="country"><div class="c-name">France</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-France-Ligue-1" data-country="France" data-league="Ligue 1" checked=""> <span>Ligue 1</span></label><label class="league"><input type="checkbox" id="lg-France-Ligue-2" data-country="France" data-league="Ligue 2" checked=""> <span>Ligue 2</span></label><label class="league"><input type="checkbox" id="lg-France-National" data-country="France" data-league="National" checked=""> <span>National</span></label><label class="league"><input type="checkbox" id="lg-France-Coupe-de-France" data-country="France" data-league="Coupe de France" checked=""> <span>Coupe de France</span></label><label class="league"><input type="checkbox" id="lg-France-Trophée-des-Champions" data-country="France" data-league="Trophée des Champions" checked=""> <span>Trophée des Champions</span></label></div></div><div class="country"><div class="c-name">Portugal</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Portugal-Primeira-Liga" data-country="Portugal" data-league="Primeira Liga" checked=""> <span>Primeira Liga</span></label><label class="league"><input type="checkbox" id="lg-Portugal-Segunda-Liga" data-country="Portugal" data-league="Segunda Liga" checked=""> <span>Segunda Liga</span></label><label class="league"><input type="checkbox" id="lg-Portugal-Taça-de-Portugal" data-country="Portugal" data-league="Taça de Portugal" checked=""> <span>Taça de Portugal</span></label><label class="league"><input type="checkbox" id="lg-Portugal-Taça-da-Liga" data-country="Portugal" data-league="Taça da Liga" checked=""> <span>Taça da Liga</span></label></div></div><div class="country"><div class="c-name">Netherlands</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Netherlands-Eredivisie" data-country="Netherlands" data-league="Eredivisie" checked=""> <span>Eredivisie</span></label><label class="league"><input type="checkbox" id="lg-Netherlands-Eerste-Divisie" data-country="Netherlands" data-league="Eerste Divisie" checked=""> <span>Eerste Divisie</span></label><label class="league"><input type="checkbox" id="lg-Netherlands-KNVB-Cup" data-country="Netherlands" data-league="KNVB Cup" checked=""> <span>KNVB Cup</span></label></div></div><div class="country"><div class="c-name">Belgium</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Belgium-Pro-League" data-country="Belgium" data-league="Pro League" checked=""> <span>Pro League</span></label><label class="league"><input type="checkbox" id="lg-Belgium-Challenger-Pro-League" data-country="Belgium" data-league="Challenger Pro League" checked=""> <span>Challenger Pro League</span></label><label class="league"><input type="checkbox" id="lg-Belgium-Belgian-Cup" data-country="Belgium" data-league="Belgian Cup" checked=""> <span>Belgian Cup</span></label></div></div><div class="country"><div class="c-name">Turkey</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Turkey-Süper-Lig" data-country="Turkey" data-league="Süper Lig" checked=""> <span>Süper Lig</span></label><label class="league"><input type="checkbox" id="lg-Turkey-1.-Lig" data-country="Turkey" data-league="1. Lig" checked=""> <span>1. Lig</span></label><label class="league"><input type="checkbox" id="lg-Turkey-Turkish-Cup" data-country="Turkey" data-league="Turkish Cup" checked=""> <span>Turkish Cup</span></label></div></div><div class="country"><div class="c-name">Scotland</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Scotland-Premiership" data-country="Scotland" data-league="Premiership" checked=""> <span>Premiership</span></label><label class="league"><input type="checkbox" id="lg-Scotland-Championship" data-country="Scotland" data-league="Championship" checked=""> <span>Championship</span></label><label class="league"><input type="checkbox" id="lg-Scotland-Scottish-Cup" data-country="Scotland" data-league="Scottish Cup" checked=""> <span>Scottish Cup</span></label><label class="league"><input type="checkbox" id="lg-Scotland-League-Cup" data-country="Scotland" data-league="League Cup" checked=""> <span>League Cup</span></label></div></div><div class="country"><div class="c-name">Austria</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Austria-Bundesliga" data-country="Austria" data-league="Bundesliga" checked=""> <span>Bundesliga</span></label><label class="league"><input type="checkbox" id="lg-Austria-2.-Liga" data-country="Austria" data-league="2. Liga" checked=""> <span>2. Liga</span></label><label class="league"><input type="checkbox" id="lg-Austria-OFB-Cup" data-country="Austria" data-league="OFB Cup" checked=""> <span>OFB Cup</span></label></div></div><div class="country"><div class="c-name">Switzerland</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Switzerland-Super-League" data-country="Switzerland" data-league="Super League" checked=""> <span>Super League</span></label><label class="league"><input type="checkbox" id="lg-Switzerland-Challenge-League" data-country="Switzerland" data-league="Challenge League" checked=""> <span>Challenge League</span></label><label class="league"><input type="checkbox" id="lg-Switzerland-Swiss-Cup" data-country="Switzerland" data-league="Swiss Cup" checked=""> <span>Swiss Cup</span></label></div></div><div class="country"><div class="c-name">Greece</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Greece-Super-League-1" data-country="Greece" data-league="Super League 1" checked=""> <span>Super League 1</span></label><label class="league"><input type="checkbox" id="lg-Greece-Super-League-2" data-country="Greece" data-league="Super League 2" checked=""> <span>Super League 2</span></label><label class="league"><input type="checkbox" id="lg-Greece-Greek-Cup" data-country="Greece" data-league="Greek Cup" checked=""> <span>Greek Cup</span></label></div></div><div class="country"><div class="c-name">Denmark</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Denmark-Superliga" data-country="Denmark" data-league="Superliga" checked=""> <span>Superliga</span></label><label class="league"><input type="checkbox" id="lg-Denmark-1st-Division" data-country="Denmark" data-league="1st Division" checked=""> <span>1st Division</span></label><label class="league"><input type="checkbox" id="lg-Denmark-Danish-Cup" data-country="Denmark" data-league="Danish Cup" checked=""> <span>Danish Cup</span></label></div></div><div class="country"><div class="c-name">Norway</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Norway-Eliteserien" data-country="Norway" data-league="Eliteserien" checked=""> <span>Eliteserien</span></label><label class="league"><input type="checkbox" id="lg-Norway-1.-divisjon" data-country="Norway" data-league="1. divisjon" checked=""> <span>1. divisjon</span></label><label class="league"><input type="checkbox" id="lg-Norway-Norwegian-Cup" data-country="Norway" data-league="Norwegian Cup" checked=""> <span>Norwegian Cup</span></label></div></div><div class="country"><div class="c-name">Sweden</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Sweden-Allsvenskan" data-country="Sweden" data-league="Allsvenskan" checked=""> <span>Allsvenskan</span></label><label class="league"><input type="checkbox" id="lg-Sweden-Superettan" data-country="Sweden" data-league="Superettan" checked=""> <span>Superettan</span></label><label class="league"><input type="checkbox" id="lg-Sweden-Svenska-Cupen" data-country="Sweden" data-league="Svenska Cupen" checked=""> <span>Svenska Cupen</span></label></div></div><div class="country"><div class="c-name">Poland</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Poland-Ekstraklasa" data-country="Poland" data-league="Ekstraklasa" checked=""> <span>Ekstraklasa</span></label><label class="league"><input type="checkbox" id="lg-Poland-I-liga" data-country="Poland" data-league="I liga" checked=""> <span>I liga</span></label><label class="league"><input type="checkbox" id="lg-Poland-Polish-Cup" data-country="Poland" data-league="Polish Cup" checked=""> <span>Polish Cup</span></label></div></div><div class="country"><div class="c-name">Czech Republic</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Czech-Republic-First-League" data-country="Czech Republic" data-league="First League" checked=""> <span>First League</span></label><label class="league"><input type="checkbox" id="lg-Czech-Republic-FNL" data-country="Czech Republic" data-league="FNL" checked=""> <span>FNL</span></label><label class="league"><input type="checkbox" id="lg-Czech-Republic-Czech-Cup" data-country="Czech Republic" data-league="Czech Cup" checked=""> <span>Czech Cup</span></label></div></div><div class="country"><div class="c-name">Croatia</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Croatia-HNL" data-country="Croatia" data-league="HNL" checked=""> <span>HNL</span></label><label class="league"><input type="checkbox" id="lg-Croatia-First-NL" data-country="Croatia" data-league="First NL" checked=""> <span>First NL</span></label><label class="league"><input type="checkbox" id="lg-Croatia-Croatian-Cup" data-country="Croatia" data-league="Croatian Cup" checked=""> <span>Croatian Cup</span></label></div></div><div class="country"><div class="c-name">Serbia</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Serbia-SuperLiga" data-country="Serbia" data-league="SuperLiga" checked=""> <span>SuperLiga</span></label><label class="league"><input type="checkbox" id="lg-Serbia-Prva-Liga" data-country="Serbia" data-league="Prva Liga" checked=""> <span>Prva Liga</span></label><label class="league"><input type="checkbox" id="lg-Serbia-Serbian-Cup" data-country="Serbia" data-league="Serbian Cup" checked=""> <span>Serbian Cup</span></label></div></div><div class="country"><div class="c-name">Ukraine</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Ukraine-Premier-League" data-country="Ukraine" data-league="Premier League" checked=""> <span>Premier League</span></label><label class="league"><input type="checkbox" id="lg-Ukraine-Persha-Liga" data-country="Ukraine" data-league="Persha Liga" checked=""> <span>Persha Liga</span></label></div></div><div class="country"><div class="c-name">Russia</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Russia-Premier-League" data-country="Russia" data-league="Premier League" checked=""> <span>Premier League</span></label><label class="league"><input type="checkbox" id="lg-Russia-FNL" data-country="Russia" data-league="FNL" checked=""> <span>FNL</span></label><label class="league"><input type="checkbox" id="lg-Russia-Russian-Cup" data-country="Russia" data-league="Russian Cup" checked=""> <span>Russian Cup</span></label></div></div><div class="country"><div class="c-name">Romania</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Romania-Liga-I" data-country="Romania" data-league="Liga I" checked=""> <span>Liga I</span></label><label class="league"><input type="checkbox" id="lg-Romania-Liga-II" data-country="Romania" data-league="Liga II" checked=""> <span>Liga II</span></label><label class="league"><input type="checkbox" id="lg-Romania-Cupa-României" data-country="Romania" data-league="Cupa României" checked=""> <span>Cupa României</span></label></div></div><div class="country"><div class="c-name">Bulgaria</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Bulgaria-First-League" data-country="Bulgaria" data-league="First League" checked=""> <span>First League</span></label><label class="league"><input type="checkbox" id="lg-Bulgaria-Second-League" data-country="Bulgaria" data-league="Second League" checked=""> <span>Second League</span></label></div></div><div class="country"><div class="c-name">Hungary</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Hungary-NB-I" data-country="Hungary" data-league="NB I" checked=""> <span>NB I</span></label><label class="league"><input type="checkbox" id="lg-Hungary-NB-II" data-country="Hungary" data-league="NB II" checked=""> <span>NB II</span></label><label class="league"><input type="checkbox" id="lg-Hungary-Magyar-Kupa" data-country="Hungary" data-league="Magyar Kupa" checked=""> <span>Magyar Kupa</span></label></div></div><div class="country"><div class="c-name">Slovakia</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Slovakia-Niké-Liga" data-country="Slovakia" data-league="Niké Liga" checked=""> <span>Niké Liga</span></label><label class="league"><input type="checkbox" id="lg-Slovakia-2.-liga" data-country="Slovakia" data-league="2. liga" checked=""> <span>2. liga</span></label></div></div><div class="country"><div class="c-name">Slovenia</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Slovenia-PrvaLiga" data-country="Slovenia" data-league="PrvaLiga" checked=""> <span>PrvaLiga</span></label><label class="league"><input type="checkbox" id="lg-Slovenia-2.-SNL" data-country="Slovenia" data-league="2. SNL" checked=""> <span>2. SNL</span></label></div></div><div class="country"><div class="c-name">Bosnia</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Bosnia-Premijer-Liga" data-country="Bosnia" data-league="Premijer Liga" checked=""> <span>Premijer Liga</span></label></div></div><div class="country"><div class="c-name">Ireland</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Ireland-Premier-Division" data-country="Ireland" data-league="Premier Division" checked=""> <span>Premier Division</span></label><label class="league"><input type="checkbox" id="lg-Ireland-First-Division" data-country="Ireland" data-league="First Division" checked=""> <span>First Division</span></label><label class="league"><input type="checkbox" id="lg-Ireland-FAI-Cup" data-country="Ireland" data-league="FAI Cup" checked=""> <span>FAI Cup</span></label></div></div><div class="country"><div class="c-name">N. Ireland</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-N.-Ireland-Premiership" data-country="N. Ireland" data-league="Premiership" checked=""> <span>Premiership</span></label></div></div><div class="country"><div class="c-name">Wales</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Wales-Cymru-Premier" data-country="Wales" data-league="Cymru Premier" checked=""> <span>Cymru Premier</span></label></div></div><div class="country"><div class="c-name">Finland</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Finland-Veikkausliiga" data-country="Finland" data-league="Veikkausliiga" checked=""> <span>Veikkausliiga</span></label><label class="league"><input type="checkbox" id="lg-Finland-Ykkönen" data-country="Finland" data-league="Ykkönen" checked=""> <span>Ykkönen</span></label></div></div><div class="country"><div class="c-name">Iceland</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Iceland-Besta-deild-karla" data-country="Iceland" data-league="Besta deild karla" checked=""> <span>Besta deild karla</span></label></div></div><div class="country"><div class="c-name">Israel</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Israel-Premier-League" data-country="Israel" data-league="Premier League" checked=""> <span>Premier League</span></label><label class="league"><input type="checkbox" id="lg-Israel-Toto-Cup" data-country="Israel" data-league="Toto Cup" checked=""> <span>Toto Cup</span></label></div></div><div class="country"><div class="c-name">Cyprus</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Cyprus-First-Division" data-country="Cyprus" data-league="First Division" checked=""> <span>First Division</span></label></div></div><div class="country"><div class="c-name">UEFA</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-UEFA-Champions-League" data-country="UEFA" data-league="Champions League" checked=""> <span>Champions League</span></label><label class="league"><input type="checkbox" id="lg-UEFA-Europa-League" data-country="UEFA" data-league="Europa League" checked=""> <span>Europa League</span></label><label class="league"><input type="checkbox" id="lg-UEFA-Conference-League" data-country="UEFA" data-league="Conference League" checked=""> <span>Conference League</span></label><label class="league"><input type="checkbox" id="lg-UEFA-Euro-Qualification" data-country="UEFA" data-league="Euro Qualification" checked=""> <span>Euro Qualification</span></label><label class="league"><input type="checkbox" id="lg-UEFA-Nations-League" data-country="UEFA" data-league="Nations League" checked=""> <span>Nations League</span></label></div></div></details><details class="continent" open=""><summary><span style="opacity:.7">🌍</span> Africa</summary><div class="country"><div class="c-name">CAF</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-CAF-Champions-League" data-country="CAF" data-league="Champions League" checked=""> <span>Champions League</span></label><label class="league"><input type="checkbox" id="lg-CAF-Confederation-Cup" data-country="CAF" data-league="Confederation Cup" checked=""> <span>Confederation Cup</span></label><label class="league"><input type="checkbox" id="lg-CAF-Africa-Cup-of-Nations" data-country="CAF" data-league="Africa Cup of Nations" checked=""> <span>Africa Cup of Nations</span></label></div></div><div class="country"><div class="c-name">Egypt</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Egypt-Premier-League" data-country="Egypt" data-league="Premier League" checked=""> <span>Premier League</span></label><label class="league"><input type="checkbox" id="lg-Egypt-Egypt-Cup" data-country="Egypt" data-league="Egypt Cup" checked=""> <span>Egypt Cup</span></label></div></div><div class="country"><div class="c-name">Morocco</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Morocco-Botola-Pro" data-country="Morocco" data-league="Botola Pro" checked=""> <span>Botola Pro</span></label><label class="league"><input type="checkbox" id="lg-Morocco-Coupe-du-Trône" data-country="Morocco" data-league="Coupe du Trône" checked=""> <span>Coupe du Trône</span></label></div></div><div class="country"><div class="c-name">Tunisia</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Tunisia-Ligue-1" data-country="Tunisia" data-league="Ligue 1" checked=""> <span>Ligue 1</span></label><label class="league"><input type="checkbox" id="lg-Tunisia-Tunisian-Cup" data-country="Tunisia" data-league="Tunisian Cup" checked=""> <span>Tunisian Cup</span></label></div></div><div class="country"><div class="c-name">Algeria</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Algeria-Ligue-1" data-country="Algeria" data-league="Ligue 1" checked=""> <span>Ligue 1</span></label><label class="league"><input type="checkbox" id="lg-Algeria-Algerian-Cup" data-country="Algeria" data-league="Algerian Cup" checked=""> <span>Algerian Cup</span></label></div></div><div class="country"><div class="c-name">South Africa</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-South-Africa-Premiership" data-country="South Africa" data-league="Premiership" checked=""> <span>Premiership</span></label><label class="league"><input type="checkbox" id="lg-South-Africa-Championship" data-country="South Africa" data-league="Championship" checked=""> <span>Championship</span></label><label class="league"><input type="checkbox" id="lg-South-Africa-Nedbank-Cup" data-country="South Africa" data-league="Nedbank Cup" checked=""> <span>Nedbank Cup</span></label></div></div><div class="country"><div class="c-name">Nigeria</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Nigeria-NPFL" data-country="Nigeria" data-league="NPFL" checked=""> <span>NPFL</span></label><label class="league"><input type="checkbox" id="lg-Nigeria-Federation-Cup" data-country="Nigeria" data-league="Federation Cup" checked=""> <span>Federation Cup</span></label></div></div><div class="country"><div class="c-name">Ghana</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Ghana-Premier-League" data-country="Ghana" data-league="Premier League" checked=""> <span>Premier League</span></label><label class="league"><input type="checkbox" id="lg-Ghana-FA-Cup" data-country="Ghana" data-league="FA Cup" checked=""> <span>FA Cup</span></label></div></div><div class="country"><div class="c-name">Kenya</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Kenya-Premier-League" data-country="Kenya" data-league="Premier League" checked=""> <span>Premier League</span></label></div></div><div class="country"><div class="c-name">Tanzania</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Tanzania-Ligi-Kuu-Bara" data-country="Tanzania" data-league="Ligi Kuu Bara" checked=""> <span>Ligi Kuu Bara</span></label></div></div><div class="country"><div class="c-name">Uganda</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Uganda-Premier-League" data-country="Uganda" data-league="Premier League" checked=""> <span>Premier League</span></label></div></div><div class="country"><div class="c-name">Zambia</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Zambia-Super-League" data-country="Zambia" data-league="Super League" checked=""> <span>Super League</span></label></div></div><div class="country"><div class="c-name">Ethiopia</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Ethiopia-Premier-League" data-country="Ethiopia" data-league="Premier League" checked=""> <span>Premier League</span></label></div></div><div class="country"><div class="c-name">Senegal</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Senegal-Ligue-1" data-country="Senegal" data-league="Ligue 1" checked=""> <span>Ligue 1</span></label></div></div><div class="country"><div class="c-name">Ivory Coast</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Ivory-Coast-Ligue-1" data-country="Ivory Coast" data-league="Ligue 1" checked=""> <span>Ligue 1</span></label></div></div><div class="country"><div class="c-name">Cameroon</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Cameroon-Elite-One" data-country="Cameroon" data-league="Elite One" checked=""> <span>Elite One</span></label></div></div><div class="country"><div class="c-name">DR Congo</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-DR-Congo-Linafoot" data-country="DR Congo" data-league="Linafoot" checked=""> <span>Linafoot</span></label></div></div><div class="country"><div class="c-name">Angola</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Angola-Girabola" data-country="Angola" data-league="Girabola" checked=""> <span>Girabola</span></label></div></div><div class="country"><div class="c-name">Mali</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Mali-Première-Division" data-country="Mali" data-league="Première Division" checked=""> <span>Première Division</span></label></div></div><div class="country"><div class="c-name">Sudan</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Sudan-Premier-League" data-country="Sudan" data-league="Premier League" checked=""> <span>Premier League</span></label></div></div></details><details class="continent" open=""><summary><span style="opacity:.7">🌍</span> Asia</summary><div class="country"><div class="c-name">AFC</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-AFC-Champions-League-Elite" data-country="AFC" data-league="Champions League Elite" checked=""> <span>Champions League Elite</span></label><label class="league"><input type="checkbox" id="lg-AFC-AFC-Cup" data-country="AFC" data-league="AFC Cup" checked=""> <span>AFC Cup</span></label><label class="league"><input type="checkbox" id="lg-AFC-Asian-Cup" data-country="AFC" data-league="Asian Cup" checked=""> <span>Asian Cup</span></label></div></div><div class="country"><div class="c-name">Saudi Arabia</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Saudi-Arabia-Pro-League" data-country="Saudi Arabia" data-league="Pro League" checked=""> <span>Pro League</span></label><label class="league"><input type="checkbox" id="lg-Saudi-Arabia-King-Cup" data-country="Saudi Arabia" data-league="King Cup" checked=""> <span>King Cup</span></label><label class="league"><input type="checkbox" id="lg-Saudi-Arabia-Super-Cup" data-country="Saudi Arabia" data-league="Super Cup" checked=""> <span>Super Cup</span></label></div></div><div class="country"><div class="c-name">UAE</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-UAE-Pro-League" data-country="UAE" data-league="Pro League" checked=""> <span>Pro League</span></label><label class="league"><input type="checkbox" id="lg-UAE-President's-Cup" data-country="UAE" data-league="President's Cup" checked=""> <span>President's Cup</span></label></div></div><div class="country"><div class="c-name">Qatar</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Qatar-Stars-League" data-country="Qatar" data-league="Stars League" checked=""> <span>Stars League</span></label><label class="league"><input type="checkbox" id="lg-Qatar-Emir-Cup" data-country="Qatar" data-league="Emir Cup" checked=""> <span>Emir Cup</span></label></div></div><div class="country"><div class="c-name">Kuwait</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Kuwait-Premier-League" data-country="Kuwait" data-league="Premier League" checked=""> <span>Premier League</span></label></div></div><div class="country"><div class="c-name">Bahrain</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Bahrain-Premier-League" data-country="Bahrain" data-league="Premier League" checked=""> <span>Premier League</span></label></div></div><div class="country"><div class="c-name">Oman</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Oman-Professional-League" data-country="Oman" data-league="Professional League" checked=""> <span>Professional League</span></label></div></div><div class="country"><div class="c-name">Iran</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Iran-Pro-League" data-country="Iran" data-league="Pro League" checked=""> <span>Pro League</span></label><label class="league"><input type="checkbox" id="lg-Iran-Hazfi-Cup" data-country="Iran" data-league="Hazfi Cup" checked=""> <span>Hazfi Cup</span></label></div></div><div class="country"><div class="c-name">Iraq</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Iraq-Stars-League" data-country="Iraq" data-league="Stars League" checked=""> <span>Stars League</span></label></div></div><div class="country"><div class="c-name">Jordan</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Jordan-Pro-League" data-country="Jordan" data-league="Pro League" checked=""> <span>Pro League</span></label></div></div><div class="country"><div class="c-name">Lebanon</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Lebanon-Premier-League" data-country="Lebanon" data-league="Premier League" checked=""> <span>Premier League</span></label></div></div><div class="country"><div class="c-name">Syria</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Syria-Premier-League" data-country="Syria" data-league="Premier League" checked=""> <span>Premier League</span></label></div></div><div class="country"><div class="c-name">Japan</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Japan-J1-League" data-country="Japan" data-league="J1 League" checked=""> <span>J1 League</span></label><label class="league"><input type="checkbox" id="lg-Japan-J2-League" data-country="Japan" data-league="J2 League" checked=""> <span>J2 League</span></label><label class="league"><input type="checkbox" id="lg-Japan-Emperor's-Cup" data-country="Japan" data-league="Emperor's Cup" checked=""> <span>Emperor's Cup</span></label><label class="league"><input type="checkbox" id="lg-Japan-J.League-Cup" data-country="Japan" data-league="J.League Cup" checked=""> <span>J.League Cup</span></label></div></div><div class="country"><div class="c-name">South Korea</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-South-Korea-K-League-1" data-country="South Korea" data-league="K League 1" checked=""> <span>K League 1</span></label><label class="league"><input type="checkbox" id="lg-South-Korea-K-League-2" data-country="South Korea" data-league="K League 2" checked=""> <span>K League 2</span></label><label class="league"><input type="checkbox" id="lg-South-Korea-FA-Cup" data-country="South Korea" data-league="FA Cup" checked=""> <span>FA Cup</span></label></div></div><div class="country"><div class="c-name">China</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-China-Super-League" data-country="China" data-league="Super League" checked=""> <span>Super League</span></label><label class="league"><input type="checkbox" id="lg-China-FA-Cup" data-country="China" data-league="FA Cup" checked=""> <span>FA Cup</span></label></div></div><div class="country"><div class="c-name">India</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-India-Indian-Super-League" data-country="India" data-league="Indian Super League" checked=""> <span>Indian Super League</span></label><label class="league"><input type="checkbox" id="lg-India-I-League" data-country="India" data-league="I-League" checked=""> <span>I-League</span></label></div></div><div class="country"><div class="c-name">Thailand</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Thailand-Thai-League-1" data-country="Thailand" data-league="Thai League 1" checked=""> <span>Thai League 1</span></label><label class="league"><input type="checkbox" id="lg-Thailand-FA-Cup" data-country="Thailand" data-league="FA Cup" checked=""> <span>FA Cup</span></label></div></div><div class="country"><div class="c-name">Vietnam</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Vietnam-V.League-1" data-country="Vietnam" data-league="V.League 1" checked=""> <span>V.League 1</span></label></div></div><div class="country"><div class="c-name">Indonesia</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Indonesia-Liga-1" data-country="Indonesia" data-league="Liga 1" checked=""> <span>Liga 1</span></label></div></div><div class="country"><div class="c-name">Malaysia</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Malaysia-Super-League" data-country="Malaysia" data-league="Super League" checked=""> <span>Super League</span></label></div></div><div class="country"><div class="c-name">Singapore</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Singapore-Premier-League" data-country="Singapore" data-league="Premier League" checked=""> <span>Premier League</span></label></div></div><div class="country"><div class="c-name">Philippines</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Philippines-PFL" data-country="Philippines" data-league="PFL" checked=""> <span>PFL</span></label></div></div><div class="country"><div class="c-name">Hong Kong</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Hong-Kong-Premier-League" data-country="Hong Kong" data-league="Premier League" checked=""> <span>Premier League</span></label></div></div></details><details class="continent" open=""><summary><span style="opacity:.7">🌍</span> South America</summary><div class="country"><div class="c-name">CONMEBOL</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-CONMEBOL-Copa-Libertadores" data-country="CONMEBOL" data-league="Copa Libertadores" checked=""> <span>Copa Libertadores</span></label><label class="league"><input type="checkbox" id="lg-CONMEBOL-Copa-Sudamericana" data-country="CONMEBOL" data-league="Copa Sudamericana" checked=""> <span>Copa Sudamericana</span></label></div></div><div class="country"><div class="c-name">Brazil</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Brazil-Série-A" data-country="Brazil" data-league="Série A" checked=""> <span>Série A</span></label><label class="league"><input type="checkbox" id="lg-Brazil-Série-B" data-country="Brazil" data-league="Série B" checked=""> <span>Série B</span></label><label class="league"><input type="checkbox" id="lg-Brazil-Copa-do-Brasil" data-country="Brazil" data-league="Copa do Brasil" checked=""> <span>Copa do Brasil</span></label><label class="league"><input type="checkbox" id="lg-Brazil-Paulista" data-country="Brazil" data-league="Paulista" checked=""> <span>Paulista</span></label><label class="league"><input type="checkbox" id="lg-Brazil-Carioca" data-country="Brazil" data-league="Carioca" checked=""> <span>Carioca</span></label></div></div><div class="country"><div class="c-name">Argentina</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Argentina-Liga-Profesional" data-country="Argentina" data-league="Liga Profesional" checked=""> <span>Liga Profesional</span></label><label class="league"><input type="checkbox" id="lg-Argentina-Primera-Nacional" data-country="Argentina" data-league="Primera Nacional" checked=""> <span>Primera Nacional</span></label><label class="league"><input type="checkbox" id="lg-Argentina-Copa-Argentina" data-country="Argentina" data-league="Copa Argentina" checked=""> <span>Copa Argentina</span></label><label class="league"><input type="checkbox" id="lg-Argentina-Copa-de-la-Liga" data-country="Argentina" data-league="Copa de la Liga" checked=""> <span>Copa de la Liga</span></label></div></div><div class="country"><div class="c-name">Colombia</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Colombia-Primera-A" data-country="Colombia" data-league="Primera A" checked=""> <span>Primera A</span></label><label class="league"><input type="checkbox" id="lg-Colombia-Primera-B" data-country="Colombia" data-league="Primera B" checked=""> <span>Primera B</span></label><label class="league"><input type="checkbox" id="lg-Colombia-Copa-Colombia" data-country="Colombia" data-league="Copa Colombia" checked=""> <span>Copa Colombia</span></label></div></div><div class="country"><div class="c-name">Chile</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Chile-Primera-División" data-country="Chile" data-league="Primera División" checked=""> <span>Primera División</span></label><label class="league"><input type="checkbox" id="lg-Chile-Copa-Chile" data-country="Chile" data-league="Copa Chile" checked=""> <span>Copa Chile</span></label></div></div><div class="country"><div class="c-name">Uruguay</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Uruguay-Primera-División" data-country="Uruguay" data-league="Primera División" checked=""> <span>Primera División</span></label></div></div><div class="country"><div class="c-name">Peru</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Peru-Liga-1" data-country="Peru" data-league="Liga 1" checked=""> <span>Liga 1</span></label></div></div><div class="country"><div class="c-name">Ecuador</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Ecuador-LigaPro-Serie-A" data-country="Ecuador" data-league="LigaPro Serie A" checked=""> <span>LigaPro Serie A</span></label></div></div><div class="country"><div class="c-name">Paraguay</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Paraguay-Primera-División" data-country="Paraguay" data-league="Primera División" checked=""> <span>Primera División</span></label></div></div><div class="country"><div class="c-name">Bolivia</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Bolivia-División-Profesional" data-country="Bolivia" data-league="División Profesional" checked=""> <span>División Profesional</span></label></div></div><div class="country"><div class="c-name">Venezuela</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Venezuela-Primera-División" data-country="Venezuela" data-league="Primera División" checked=""> <span>Primera División</span></label></div></div></details><details class="continent" open=""><summary><span style="opacity:.7">🌍</span> North America</summary><div class="country"><div class="c-name">CONCACAF</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-CONCACAF-Champions-Cup" data-country="CONCACAF" data-league="Champions Cup" checked=""> <span>Champions Cup</span></label><label class="league"><input type="checkbox" id="lg-CONCACAF-Nations-League" data-country="CONCACAF" data-league="Nations League" checked=""> <span>Nations League</span></label><label class="league"><input type="checkbox" id="lg-CONCACAF-Gold-Cup" data-country="CONCACAF" data-league="Gold Cup" checked=""> <span>Gold Cup</span></label></div></div><div class="country"><div class="c-name">USA</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-USA-MLS" data-country="USA" data-league="MLS" checked=""> <span>MLS</span></label><label class="league"><input type="checkbox" id="lg-USA-USL-Championship" data-country="USA" data-league="USL Championship" checked=""> <span>USL Championship</span></label><label class="league"><input type="checkbox" id="lg-USA-US-Open-Cup" data-country="USA" data-league="US Open Cup" checked=""> <span>US Open Cup</span></label></div></div><div class="country"><div class="c-name">Mexico</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Mexico-Liga-MX" data-country="Mexico" data-league="Liga MX" checked=""> <span>Liga MX</span></label><label class="league"><input type="checkbox" id="lg-Mexico-Liga-de-Expansión" data-country="Mexico" data-league="Liga de Expansión" checked=""> <span>Liga de Expansión</span></label><label class="league"><input type="checkbox" id="lg-Mexico-Copa-MX" data-country="Mexico" data-league="Copa MX" checked=""> <span>Copa MX</span></label></div></div><div class="country"><div class="c-name">Canada</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Canada-Premier-League" data-country="Canada" data-league="Premier League" checked=""> <span>Premier League</span></label><label class="league"><input type="checkbox" id="lg-Canada-Canadian-Championship" data-country="Canada" data-league="Canadian Championship" checked=""> <span>Canadian Championship</span></label></div></div><div class="country"><div class="c-name">Costa Rica</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Costa-Rica-Primera-División" data-country="Costa Rica" data-league="Primera División" checked=""> <span>Primera División</span></label></div></div><div class="country"><div class="c-name">Honduras</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Honduras-Liga-Nacional" data-country="Honduras" data-league="Liga Nacional" checked=""> <span>Liga Nacional</span></label></div></div><div class="country"><div class="c-name">Guatemala</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Guatemala-Liga-Nacional" data-country="Guatemala" data-league="Liga Nacional" checked=""> <span>Liga Nacional</span></label></div></div><div class="country"><div class="c-name">El Salvador</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-El-Salvador-Primera-División" data-country="El Salvador" data-league="Primera División" checked=""> <span>Primera División</span></label></div></div><div class="country"><div class="c-name">Panama</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Panama-LPF" data-country="Panama" data-league="LPF" checked=""> <span>LPF</span></label></div></div><div class="country"><div class="c-name">Jamaica</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Jamaica-Premier-League" data-country="Jamaica" data-league="Premier League" checked=""> <span>Premier League</span></label></div></div></details><details class="continent" open=""><summary><span style="opacity:.7">🌍</span> Oceania</summary><div class="country"><div class="c-name">Australia</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-Australia-A-League-Men" data-country="Australia" data-league="A-League Men" checked=""> <span>A-League Men</span></label><label class="league"><input type="checkbox" id="lg-Australia-Australia-Cup" data-country="Australia" data-league="Australia Cup" checked=""> <span>Australia Cup</span></label></div></div><div class="country"><div class="c-name">New Zealand</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-New-Zealand-National-League" data-country="New Zealand" data-league="National League" checked=""> <span>National League</span></label></div></div><div class="country"><div class="c-name">OFC</div><div class="leagues"><label class="league"><input type="checkbox" id="lg-OFC-Champions-League" data-country="OFC" data-league="Champions League" checked=""> <span>Champions League</span></label></div></div></details></div>
+  </aside>
+
+  <main class="main">
+    <div class="panel controls">
+      <div class="control">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M7 3v3M17 3v3M4 9h16M6 13h3m4 0h3M6 17h3m4 0h3" stroke="#d6c48a" stroke-width="1.4" stroke-linecap="round"></path></svg>
+        <input type="date" id="datePicker">
+      </div>
+      <div class="control">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5" stroke="#d6c48a" stroke-width="1.3"></circle><path d="M12 7v5l3 2" stroke="#d6c48a" stroke-width="1.3" stroke-linecap="round"></path></svg>
+        <select id="timeRange">
+          <option value="all">All Day</option>
+          <option value="morning">Morning (06–12)</option>
+          <option value="afternoon">Afternoon (12–18)</option>
+          <option value="evening">Evening (18–24)</option>
+          <option value="night">Night (00–06)</option>
+        </select>
+      </div>
+      <div class="control" style="flex:1;min-width:220px">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="#d6c48a" stroke-width="1.4"></circle><path d="M21 21l-4.3-4.3" stroke="#d6c48a" stroke-width="1.4" stroke-linecap="round"></path></svg>
+        <input type="search" id="search" placeholder="Search team, country, league...">
+      </div>
+      <!-- API KEY INPUT - ADDED -->
+      <div class="control">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 17a5 5 0 100-10 5 5 0 000 10z" stroke="#d6c48a" stroke-width="1.3"></path><path d="M12 1v2M12 21v2" stroke="#d6c48a" stroke-width="1.2"></path></svg>
+        <input type="password" id="apiKeyInput" placeholder="API-Football Key">
+        <button id="saveKey" class="btn-ghost" style="padding:4px 8px">Save</button>
+      </div>
+      <div class="filters">
+        <button class="chip active" data-filter="all">All</button>
+        <button class="chip" data-filter="L">L</button>
+        <button class="chip" data-filter="NS">NS</button>
+        <button class="chip" data-filter="FT">FT</button>
+      </div>
+    </div>
+
+    <div class="panel banner">
+      <span class="count" id="count">0 fixtures</span>
+      <span class="meta" id="meta">—</span>
+      <div class="spacer"></div>
+      <div class="actions">
+        <button class="btn secondary" id="refreshBtn">Refresh</button>
+        <button class="btn secondary" id="copyBtn">Copy All</button>
+        <button class="btn secondary" id="csvBtn">CSV</button>
+        <button class="btn" id="jsonBtn">JSON</button>
+      </div>
+    </div>
+
+    <div class="panel table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:90px">Time</th>
+            <th style="width:130px">Country</th>
+            <th style="width:180px">League</th>
+            <th>Home</th>
+            <th>Away</th>
+            <th style="width:90px;text-align:center">Score</th>
+            <th style="width:110px;text-align:right">Status</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"><tr><td colspan="7" class="empty">Add your API key above, then click Refresh</td></tr></tbody>
+      </table>
+    </div>
+  </main>
+</div>
+
+<script>
+// === API KEY PLACEHOLDER - NOT EMBEDDED ===
+let API_KEY = localStorage.getItem('dg_api_key') || '';
+const API_URL = 'https://v3.football.api-sports.io/fixtures';
+
+// Accra clock
+function updateAccraClock(){
+  const now = new Date();
+  const fmt = new Intl.DateTimeFormat('en-GB',{timeZone:'Africa/Accra',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+  document.getElementById('accraClock').textContent = fmt.format(now);
+}
+setInterval(updateAccraClock,1000);updateAccraClock();
+
+function getAccraToday(){
+  return new Date().toLocaleDateString('en-CA',{timeZone:'Africa/Accra'});
+}
+const datePicker = document.getElementById('datePicker');
+datePicker.value = getAccraToday();
+
+// Sidebar mobile
+const sidebar = document.getElementById('sidebar');
+const scrim = document.getElementById('scrim');
+document.getElementById('menuBtn').onclick = ()=>{sidebar.classList.toggle('open');scrim.classList.toggle('show')};
+scrim.onclick = ()=>{sidebar.classList.remove('open');scrim.classList.remove('show')};
+
+// API Key UI
+const apiKeyInput = document.getElementById('apiKeyInput');
+const saveKeyBtn = document.getElementById('saveKey');
+if(API_KEY){ apiKeyInput.value = API_KEY; apiKeyInput.placeholder = 'Key saved'; }
+saveKeyBtn.onclick = ()=>{
+  const key = apiKeyInput.value.trim();
+  if(key){
+    localStorage.setItem('dg_api_key', key);
+    API_KEY = key;
+    toast('Key saved! Refreshing...');
+    fetchFixtures();
+  }
+};
+
+// LEAGUE TREE ... (unchanged from your original)
+const LEAGUE_TREE = {
+  "Europe":[{c:"England",l:["Premier League","Championship","League One","League Two","National League","FA Cup","EFL Cup","Community Shield"]},{c:"Spain",l:["La Liga","Segunda División","Primera Federación","Copa del Rey","Supercopa"]},{c:"Italy",l:["Serie A","Serie B","Coppa Italia","Supercoppa"]},{c:"Germany",l:["Bundesliga","2. Bundesliga","3. Liga","DFB-Pokal","DFL-Supercup"]},{c:"France",l:["Ligue 1","Ligue 2","National","Coupe de France","Trophée des Champions"]},{c:"Portugal",l:["Primeira Liga","Segunda Liga","Taça de Portugal","Taça da Liga"]},{c:"Netherlands",l:["Eredivisie","Eerste Divisie","KNVB Cup"]},{c:"Belgium",l:["Pro League","Challenger Pro League","Belgian Cup"]},{c:"Turkey",l:["Süper Lig","1. Lig","Turkish Cup"]},{c:"Scotland",l:["Premiership","Championship","Scottish Cup","League Cup"]},{c:"Austria",l:["Bundesliga","2. Liga","OFB Cup"]},{c:"Switzerland",l:["Super League","Challenge League","Swiss Cup"]},{c:"Greece",l:["Super League 1","Super League 2","Greek Cup"]},{c:"Denmark",l:["Superliga","1st Division","Danish Cup"]},{c:"Norway",l:["Eliteserien","1. divisjon","Norwegian Cup"]},{c:"Sweden",l:["Allsvenskan","Superettan","Svenska Cupen"]},{c:"Poland",l:["Ekstraklasa","I liga","Polish Cup"]},{c:"Czech Republic",l:["First League","FNL","Czech Cup"]},{c:"Croatia",l:["HNL","First NL","Croatian Cup"]},{c:"Serbia",l:["SuperLiga","Prva Liga","Serbian Cup"]},{c:"Ukraine",l:["Premier League","Persha Liga"]},{c:"Russia",l:["Premier League","FNL","Russian Cup"]},{c:"Romania",l:["Liga I","Liga II","Cupa României"]},{c:"Bulgaria",l:["First League","Second League"]},{c:"Hungary",l:["NB I","NB II","Magyar Kupa"]},{c:"Slovakia",l:["Niké Liga","2. liga"]},{c:"Slovenia",l:["PrvaLiga","2. SNL"]},{c:"Bosnia",l:["Premijer Liga"]},{c:"Ireland",l:["Premier Division","First Division","FAI Cup"]},{c:"N. Ireland",l:["Premiership"]},{c:"Wales",l:["Cymru Premier"]},{c:"Finland",l:["Veikkausliiga","Ykkönen"]},{c:"Iceland",l:["Besta deild karla"]},{c:"Israel",l:["Premier League","Toto Cup"]},{c:"Cyprus",l:["First Division"]},{c:"UEFA",l:["Champions League","Europa League","Conference League","Euro Qualification","Nations League"]}],
+  "Africa":[{c:"CAF",l:["Champions League","Confederation Cup","Africa Cup of Nations"]},{c:"Egypt",l:["Premier League","Egypt Cup"]},{c:"Morocco",l:["Botola Pro","Coupe du Trône"]},{c:"Tunisia",l:["Ligue 1","Tunisian Cup"]},{c:"Algeria",l:["Ligue 1","Algerian Cup"]},{c:"South Africa",l:["Premiership","Championship","Nedbank Cup"]},{c:"Nigeria",l:["NPFL","Federation Cup"]},{c:"Ghana",l:["Premier League","FA Cup"]},{c:"Kenya",l:["Premier League"]},{c:"Tanzania",l:["Ligi Kuu Bara"]},{c:"Uganda",l:["Premier League"]},{c:"Zambia",l:["Super League"]},{c:"Ethiopia",l:["Premier League"]},{c:"Senegal",l:["Ligue 1"]},{c:"Ivory Coast",l:["Ligue 1"]},{c:"Cameroon",l:["Elite One"]},{c:"DR Congo",l:["Linafoot"]},{c:"Angola",l:["Girabola"]},{c:"Mali",l:["Première Division"]},{c:"Sudan",l:["Premier League"]}],
+  "Asia":[{c:"AFC",l:["Champions League Elite","AFC Cup","Asian Cup"]},{c:"Saudi Arabia",l:["Pro League","King Cup","Super Cup"]},{c:"UAE",l:["Pro League","President's Cup"]},{c:"Qatar",l:["Stars League","Emir Cup"]},{c:"Kuwait",l:["Premier League"]},{c:"Bahrain",l:["Premier League"]},{c:"Oman",l:["Professional League"]},{c:"Iran",l:["Pro League","Hazfi Cup"]},{c:"Iraq",l:["Stars League"]},{c:"Jordan",l:["Pro League"]},{c:"Lebanon",l:["Premier League"]},{c:"Syria",l:["Premier League"]},{c:"Japan",l:["J1 League","J2 League","Emperor's Cup","J.League Cup"]},{c:"South Korea",l:["K League 1","K League 2","FA Cup"]},{c:"China",l:["Super League","FA Cup"]},{c:"India",l:["Indian Super League","I-League"]},{c:"Thailand",l:["Thai League 1","FA Cup"]},{c:"Vietnam",l:["V.League 1"]},{c:"Indonesia",l:["Liga 1"]},{c:"Malaysia",l:["Super League"]},{c:"Singapore",l:["Premier League"]},{c:"Philippines",l:["PFL"]},{c:"Hong Kong",l:["Premier League"]}],
+  "South America":[{c:"CONMEBOL",l:["Copa Libertadores","Copa Sudamericana"]},{c:"Brazil",l:["Série A","Série B","Copa do Brasil","Paulista","Carioca"]},{c:"Argentina",l:["Liga Profesional","Primera Nacional","Copa Argentina","Copa de la Liga"]},{c:"Colombia",l:["Primera A","Primera B","Copa Colombia"]},{c:"Chile",l:["Primera División","Copa Chile"]},{c:"Uruguay",l:["Primera División"]},{c:"Peru",l:["Liga 1"]},{c:"Ecuador",l:["LigaPro Serie A"]},{c:"Paraguay",l:["Primera División"]},{c:"Bolivia",l:["División Profesional"]},{c:"Venezuela",l:["Primera División"]}],
+  "North America":[{c:"CONCACAF",l:["Champions Cup","Nations League","Gold Cup"]},{c:"USA",l:["MLS","USL Championship","US Open Cup"]},{c:"Mexico",l:["Liga MX","Liga de Expansión","Copa MX"]},{c:"Canada",l:["Premier League","Canadian Championship"]},{c:"Costa Rica",l:["Primera División"]},{c:"Honduras",l:["Liga Nacional"]},{c:"Guatemala",l:["Liga Nacional"]},{c:"El Salvador",l:["Primera División"]},{c:"Panama",l:["LPF"]},{c:"Jamaica",l:["Premier League"]}],
+  "Oceania":[{c:"Australia",l:["A-League Men","Australia Cup"]},{c:"New Zealand",l:["National League"]},{c:"OFC",l:["Champions League"]}]
+};
+
+const treeEl = document.getElementById('leagueTree');
+function buildTree(){
+  treeEl.innerHTML='';
+  Object.entries(LEAGUE_TREE).forEach(([continent,countries])=>{
+    const details=document.createElement('details');details.className='continent';details.open=true;
+    const summary=document.createElement('summary');summary.innerHTML=`<span style="opacity:.7">🌍</span> ${continent}`;details.appendChild(summary);
+    countries.forEach(({c,l})=>{
+      const wrap=document.createElement('div');wrap.className='country';
+      const name=document.createElement('div');name.className='c-name';name.textContent=c;wrap.appendChild(name);
+      const grid=document.createElement('div');grid.className='leagues';
+      l.forEach(league=>{
+        const label=document.createElement('label');label.className='league';
+        const id=`lg-${c}-${league}`.replace(/\s+/g,'-');
+        label.innerHTML=`<input type="checkbox" id="${id}" data-country="${c}" data-league="${league}" checked> <span>${league}</span>`;
+        grid.appendChild(label);
+      });
+      wrap.appendChild(grid);details.appendChild(wrap);
+    });
+    treeEl.appendChild(details);
+  });
+}
+buildTree();
+
+document.getElementById('selectAll').onclick=()=>treeEl.querySelectorAll('input[type="checkbox"]').forEach(cb=>cb.checked=true);
+document.getElementById('clearAll').onclick=()=>treeEl.querySelectorAll('input[type="checkbox"]').forEach(cb=>cb.checked=false);
+
+let fixtures=[];let isSample=false;let statusFilter='all';
+
+const timeRangeEl=document.getElementById('timeRange');
+const searchEl=document.getElementById('search');
+const tbody=document.getElementById('tbody');
+const countEl=document.getElementById('count');
+const metaEl=document.getElementById('meta');
+
+function getSelectedLeagues(){
+  const set=new Set();
+  treeEl.querySelectorAll('input:checked').forEach(cb=>{
+    set.add(`${cb.dataset.country}|||${cb.dataset.league}`);
+  });
+  return set;
+}
+
+function isLiveStatus(s){return ['1H','HT','2H','ET','BT','P','LIVE','INT'].includes(s)}
+function isFinished(s){return ['FT','AET','PEN'].includes(s)}
+
+function formatTimeAccra(iso){
+  const d=new Date(iso);
+  return new Intl.DateTimeFormat('en-GB',{timeZone:'Africa/Accra',hour:'2-digit',minute:'2-digit',hour12:false}).format(d);
+}
+
+async function fetchFixtures(){
+  if(!API_KEY){
+    tbody.innerHTML=`<tr><td colspan="7" class="empty">⚠️ Please enter your API-Football key above and click Save</td></tr>`;
+    metaEl.textContent='No API key';
+    return;
+  }
+  tbody.innerHTML=`<tr><td colspan="7" class="empty">Fetching fixtures from API-Football…</td></tr>`;
+  const dateStr=datePicker.value||getAccraToday();
+  try{
+    const res = await fetch(`${API_URL}?date=${dateStr}&timezone=Africa/Accra`,{
+      headers:{'x-apisports-key':API_KEY}
+    });
+    if(!res.ok) throw new Error('API error');
+    const json=await res.json();
+    const data=json.response||[];
+    fixtures=data.map(f=>({
+      time:formatTimeAccra(f.fixture.date),
+      ts:new Date(f.fixture.date).getTime(),
+      country:f.league.country,
+      league:f.league.name,
+      home:f.teams.home.name,
+      away:f.teams.away.name,
+      scoreH:f.goals.home,
+      scoreA:f.goals.away,
+      status:f.fixture.status.short,
+      statusLong:f.fixture.status.long
+    }));
+    isSample=false;
+    metaEl.textContent=`Live API • ${dateStr} • Africa/Accra`;
+  }catch(e){
+    console.warn('API failed, using sample',e);
+    fixtures=generateSample(dateStr);
+    isSample=true;
+    metaEl.textContent=`Demo mode (check API key) • ${dateStr}`;
+  }
+  render();
+}
+
+function generateSample(dateStr){ /* unchanged from your code */ 
+  const out=[];const base=new Date(dateStr+'T00:00:00');
+  Object.values(LEAGUE_TREE).flat().forEach(({c,l})=>{
+    l.forEach(league=>{
+      const matches=2;
+      for(let i=0;i<matches;i++){
+        const d=new Date(base.getTime()+(12+i*2)*3600000);
+        out.push({time:new Intl.DateTimeFormat('en-GB',{hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'Africa/Accra'}).format(d),ts:d.getTime(),country:c,league,home:'Home FC',away:'Away FC',scoreH:null,scoreA:null,status:'NS',statusLong:'Not Started'});
+      }
+    });
+  });
+  return out.slice(0,50);
+}
+
+function render(){
+  const selected=getSelectedLeagues();
+  const q=searchEl.value.trim().toLowerCase();
+  const tr=timeRangeEl.value;
+  let list=fixtures.filter(f=>{
+    const key=`${f.country}|||${f.league}`;
+    if(selected.size && !selected.has(key)) return false;
+    if(q){const hay=`${f.home} ${f.away} ${f.league} ${f.country}`.toLowerCase();if(!hay.includes(q)) return false;}
+    const hour=parseInt(f.time.slice(0,2),10);
+    if(tr==='morning' && (hour<6||hour>=12)) return false;
+    if(tr==='afternoon' && (hour<12||hour>=18)) return false;
+    if(tr==='evening' && (hour<18||hour>=24)) return false;
+    if(tr==='night' && (hour>=6)) return false;
+    if(statusFilter==='L' && !isLiveStatus(f.status)) return false;
+    if(statusFilter==='NS' && !(f.status==='NS'||f.status==='TBD')) return false;
+    if(statusFilter==='FT' && !isFinished(f.status)) return false;
+    return true;
+  });
+  list.sort((a,b)=>a.ts-b.ts);
+  countEl.textContent=`${list.length} fixtures`;
+  if(!list.length){tbody.innerHTML=`<tr><td colspan="7" class="empty">No fixtures</td></tr>`;return;}
+  const groups=new Map();list.forEach(f=>{const k=`${f.country} • ${f.league}`;if(!groups.has(k))groups.set(k,[]);groups.get(k).push(f)});
+  let html='';
+  for(const [key,arr] of groups){
+    const [country,league]=key.split(' • ');
+    html+=`<tr class="group-row"><td colspan="7">${country} — ${league}</td></tr>`;
+    arr.forEach(f=>{
+      const score=(f.status==='NS'||f.scoreH===null)?'—':`${f.scoreH} : ${f.scoreA}`;
+      let badge='<span class="badge ns">NS</span>';
+      if(isLiveStatus(f.status)) badge=`<span class="badge live">LIVE</span>`;
+      else if(isFinished(f.status)) badge=`<span class="badge ft">FT</span>`;
+      html+=`<tr><td class="time">${f.time}</td><td class="country">${f.country}</td><td class="league">${f.league}</td><td class="home">${f.home}</td><td class="away">${f.away}</td><td class="score">${score}</td><td class="status">${badge}</td></tr>`;
+    });
+  }
+  tbody.innerHTML=html;
+}
+
+// Filters
+document.querySelectorAll('.chip').forEach(ch=>{ch.onclick=()=>{document.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));ch.classList.add('active');statusFilter=ch.dataset.filter;render();};});
+timeRangeEl.onchange=render;searchEl.oninput=render;datePicker.onchange=fetchFixtures;treeEl.addEventListener('change',render);
+document.getElementById('refreshBtn').onclick=fetchFixtures;
+document.getElementById('copyBtn').onclick=()=>{toast('Copied')};
+document.getElementById('csvBtn').onclick=()=>{};
+document.getElementById('jsonBtn').onclick=()=>{};
+function toast(msg){const t=document.createElement('div');t.textContent=msg;t.style.cssText='position:fixed;left:50%;bottom:30px;transform:translateX(-50%);padding:10px 16px;background:#D4AF37;color:#000;border-radius:10px;font-weight:700;z-index:9999';document.body.appendChild(t);setTimeout(()=>t.remove(),1500);}
+
+// Auto-load if key exists
+if(API_KEY) fetchFixtures();
+</script>
+</body></html>
